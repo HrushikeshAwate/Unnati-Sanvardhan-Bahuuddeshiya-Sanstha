@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "1075761404520",
+    "project_id": "usbs-3080a",
+    "storage_bucket": "usbs-3080a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1075761404520:android:dc2891a8c3c4ce8d26b9dd",
+        "android_client_info": {
+          "package_name": "com.example.usbs"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1075761404520-n47vl5fb15opakmdcsa97nkqma7ijr19.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.usbs",
+            "certificate_hash": "8b0f9054ad4251c9f86be142165f57487156657f"
+          }
+        },
+        {
+          "client_id": "1075761404520-vs2l0jqbnaqr319ljqjm083lt2oa7d26.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCfwTRZRvBZ6vy6LIwhWz2mF4fBOZjtPhQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1075761404520-vs2l0jqbnaqr319ljqjm083lt2oa7d26.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
