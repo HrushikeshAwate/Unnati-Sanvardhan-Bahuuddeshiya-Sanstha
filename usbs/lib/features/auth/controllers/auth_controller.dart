@@ -1,21 +1,21 @@
-import 'package:firebase_auth/firebase_auth.dart';
-import '../../../core/models/user_model.dart';
-import '../../../core/services/auth_service.dart';
-import '../../../core/services/firestore_service.dart';
+import '../../../bootstrap/dependency_injection.dart';
 
 class AuthController {
-  final AuthService _auth;
-  final FirestoreService _firestore;
+  static Future<void> loginWithEmail(
+      String email, String password) async {
+    await DependencyInjection.authService
+        .loginWithEmail(email, password);
+  }
 
-  AuthController(this._auth, this._firestore);
+  static Future<void> loginWithGoogle() async {
+    await DependencyInjection.authService.loginWithGoogle();
+  }
 
-  Stream<AppUser> userStream() async* {
-    await for (final User? user in _auth.authStateChanges()) {
-      if (user == null) {
-        yield const AppUser(uid: 'unauth', role: UserRole.guest);
-      } else {
-        yield await _firestore.resolveUser(user);
-      }
-    }
+  static Future<void> loginAsGuest() async {
+    await DependencyInjection.authService.loginAsGuest();
+  }
+
+  static Future<void> logout() async {
+    await DependencyInjection.authService.logout();
   }
 }

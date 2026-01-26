@@ -1,11 +1,19 @@
-enum UserRole { superadmin, admin, client, guest }
-
-class AppUser {
+class UserModel {
   final String uid;
-  final UserRole role;
+  final String? email;
+  final String role;
 
-  const AppUser({
+  UserModel({
     required this.uid,
+    required this.email,
     required this.role,
   });
+
+  factory UserModel.fromJson(Map<String, dynamic> json) {
+    return UserModel(
+      uid: json['uid'],
+      email: json['email'],
+      role: json['role'],
+    );
+  }
 }

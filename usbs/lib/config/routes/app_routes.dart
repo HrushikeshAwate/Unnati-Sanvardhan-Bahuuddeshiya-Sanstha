@@ -1,34 +1,39 @@
 import 'package:flutter/material.dart';
-import '../../features/common/screens/splash_screen.dart';
-import '../../features/auth/screens/auth_landing_screen.dart';
-import '../../features/auth/screens/login_screen.dart';
-import '../../features/auth/controllers/auth_controller.dart';
 import 'route_names.dart';
 
-Map<String, WidgetBuilder> buildAppRoutes(
-  AuthController authController,
-) {
-  return {
-    Routes.splash: (_) =>
-        SplashScreen(authController: authController),
+// Auth
+import '../../features/auth/screens/splash_screen.dart';
+import '../../features/auth/screens/login_screen.dart';
+import '../../features/auth/screens/guest_entry_screen.dart';
 
-    Routes.authLanding: (_) => const AuthLandingScreen(),
-    Routes.login: (_) => const LoginScreen(),
+// Client
+import '../../features/home/screens/home_screen.dart';
+import '../../features/profile/screens/profile_screen.dart';
 
-    Routes.guest: (_) => const Scaffold(
-          body: Center(child: Text('Guest Home')),
-        ),
+// Admin
+import '../../features/admin/screens/admin_dashboard.dart';
+import '../../features/admin/screens/superadmin_dashboard.dart';
 
-    Routes.clientHome: (_) => const Scaffold(
-          body: Center(child: Text('Client Home')),
-        ),
+// Services
+import '../../features/legal/screens/legal_info_screen.dart';
+import '../../features/medical/screens/medical_info_screen.dart';
+import '../../features/education/screens/education_info_screen.dart';
 
-    Routes.adminDashboard: (_) => const Scaffold(
-          body: Center(child: Text('Admin Dashboard')),
-        ),
+class AppRoutes {
+  static final Map<String, WidgetBuilder> routes = {
+    RouteNames.splash: (_) => const SplashScreen(),
+    RouteNames.login: (_) => const LoginScreen(),
+    RouteNames.guest: (_) => const GuestEntryScreen(),
 
-    Routes.superadminDashboard: (_) => const Scaffold(
-          body: Center(child: Text('Superadmin Dashboard')),
-        ),
+    RouteNames.home: (_) => const HomeScreen(),
+
+    RouteNames.adminDashboard: (_) => const AdminDashboard(),
+    RouteNames.superAdminDashboard: (_) => const SuperAdminDashboard(),
+
+    RouteNames.legalInfo: (_) => const LegalInfoScreen(),
+    RouteNames.medicalInfo: (_) => const MedicalInfoScreen(),
+    RouteNames.educationInfo: (_) => const EducationInfoScreen(),
+
+    RouteNames.profile: (_) => const ProfileScreen(),
   };
 }

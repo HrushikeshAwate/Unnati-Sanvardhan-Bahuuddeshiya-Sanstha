@@ -1,46 +1,57 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../models/user_model.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  /// Resolve user & create document on first login
-  Future<AppUser> resolveUser(User firebaseUser) async {
-    final ref = _db.collection('users').doc(firebaseUser.uid);
+  Future<void> syncUser(User user) async {
+    final ref = _db.collection('users').doc(user.uid);
     final snap = await ref.get();
 
     if (!snap.exists) {
       await ref.set({
-        'email': firebaseUser.email,
+        'uid': user.uid,
+        'email': user.email,
         'role': 'client',
+        'isActive': true,
         'createdAt': FieldValue.serverTimestamp(),
+        'lastLoginAt': FieldValue.serverTimestamp(),
       });
+    } else {
+      await ref.update({'lastLoginAt': FieldValue.serverTimestamp()});
     }
-
-    final data = (await ref.get()).data()!;
-    return AppUser(
-      uid: firebaseUser.uid,
-      role: UserRole.values.firstWhere(
-        (r) => r.name == data['role'],
-        orElse: () => UserRole.client,
-      ),
-    );
   }
 
-  /// Create query
-  Future<void> createQuery({
-    required String type,
+  Future<void> createGuestUser(User user) async {
+    await _db.collection('users').doc(user.uid).set({
+      'uid': user.uid,
+      'email': null,
+      'role': 'guest',
+      'isActive': true,
+      'createdAt': FieldValue.serverTimestamp(),
+      'lastLoginAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<String> fetchUserRole(String uid) async {
+    final doc = await _db.collection('users').doc(uid).get();
+
+    if (!doc.exists) {
+      throw Exception('User document missing');
+    }
+    return doc['role'];
+  }
+
+  Future<void> submitQuery({
     required String category,
     required String description,
     required String userId,
-  }) {
-    return _db.collection('queries').add({
-      'type': type,
+  }) async {
+    await _db.collection('queries').add({
+      'userId': userId,
       'category': category,
       'description': description,
-      'createdBy': userId,
-      'status': 'open',
+      'status': 'pending',
       'createdAt': FieldValue.serverTimestamp(),
     });
   }
