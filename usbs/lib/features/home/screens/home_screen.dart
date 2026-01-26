@@ -1,163 +1,208 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../../../core/services/firestore_service.dart';
-import '../../legal/screens/legal_info_screen.dart';
-import '../../medical/screens/medical_info_screen.dart';
-import '../../education/screens/education_info_screen.dart';
-import '../../profile/screens/profile_screen.dart';
+import 'package:carousel_slider/carousel_slider.dart';
+import 'package:usbs/core/widgets/logout_confirn_dialog.dart';
 
-class HomeScreen extends StatelessWidget {
+import '../../../config/routes/route_names.dart';
+
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
-  Future<bool> _isGuest() async {
-    final user = FirebaseAuth.instance.currentUser!;
-    final role = await FirestoreService().fetchUserRole(user.uid);
-    return role == 'guest';
-  }
-
   @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<bool>(
-      future: _isGuest(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        final bool isGuest = snapshot.data!;
-
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('NGO Services'),
-            actions: [
-              if (!isGuest)
-                IconButton(
-                  icon: const Icon(Icons.person),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const ProfileScreen(),
-                      ),
-                    );
-                  },
-                ),
-            ],
-          ),
-          body: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (isGuest)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.orange),
-                    ),
-                    child: const Text(
-                      'You are browsing as a guest. Login is required to submit queries or upload documents.',
-                      style: TextStyle(color: Colors.black87),
-                    ),
-                  ),
-
-                const Text(
-                  'Available Services',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                /// LEGAL
-                _ServiceCard(
-                  icon: Icons.gavel,
-                  title: 'Legal Assistance',
-                  description:
-                      'Family, civil, criminal, and legal guidance.',
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const LegalInfoScreen(),
-                      ),
-                    );
-                  },
-                ),
-
-                /// MEDICAL
-                _ServiceCard(
-                  icon: Icons.medical_services,
-                  title: 'Medical Support',
-                  description:
-                      'Health guidance, consultation, and support.',
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const MedicalInfoScreen(),
-                      ),
-                    );
-                  },
-                ),
-
-                /// EDUCATION
-                _ServiceCard(
-                  icon: Icons.school,
-                  title: 'Education Support',
-                  description:
-                      'Academic help, scholarships, and counseling.',
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const EducationInfoScreen(),
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
-/// 🔒 UI COMPONENT ONLY – SECURITY IS BACKEND ENFORCED
-class _ServiceCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String description;
-  final VoidCallback onTap;
+class _HomeScreenState extends State<HomeScreen> {
+  int _currentIndex = 0;
 
-  const _ServiceCard({
-    required this.icon,
-    required this.title,
-    required this.description,
-    required this.onTap,
-  });
+  /// 🔹 Local asset images
+  final List<String> _images = const [
+    'assets/images/banner_1.jpeg',
+    'assets/images/banner_2.jpeg',
+    'assets/images/banner_3.jpeg',
+  ];
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Preload images to avoid grey flash
+    for (final img in _images) {
+      precacheImage(AssetImage(img), context);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        leading: Icon(icon, size: 32),
-        title: Text(title,
-            style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text(description),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-        onTap: onTap,
+    final height = MediaQuery.of(context).size.height;
+
+    return Scaffold(
+      extendBodyBehindAppBar: true,
+      appBar: _buildAppBar(context),
+      body: Stack(
+        children: [
+          /// 🔥 Full height carousel
+          CarouselSlider.builder(
+            itemCount: _images.length,
+            options: CarouselOptions(
+              height: height,
+              viewportFraction: 1,
+              autoPlay: true,
+              autoPlayInterval: const Duration(seconds: 4),
+              autoPlayAnimationDuration: const Duration(milliseconds: 1200),
+              autoPlayCurve: Curves.easeInOutCubic,
+              enableInfiniteScroll: true,
+              onPageChanged: (index, _) {
+                setState(() => _currentIndex = index);
+              },
+            ),
+            itemBuilder: (context, index, _) {
+              return SizedBox(
+                width: double.infinity,
+                child: Image.asset(_images[index], fit: BoxFit.cover),
+              );
+            },
+          ),
+
+          /// 🌑 Dark overlay
+          Container(height: height, color: Colors.black.withOpacity(0.45)),
+
+          /// 🧭 Main content
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 90, 24, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Spacer(),
+
+                  const Text(
+                    'NGO Support Services',
+                    style: TextStyle(
+                      fontSize: 34,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  const Text(
+                    'Legal • Medical • Education\nSupporting communities with care',
+                    style: TextStyle(fontSize: 18, color: Colors.white70),
+                  ),
+
+                  const SizedBox(height: 40),
+
+                  _actionButton(
+                    context,
+                    title: 'Legal Services',
+                    route: RouteNames.legalInfo,
+                  ),
+                  _actionButton(
+                    context,
+                    title: 'Medical Services',
+                    route: RouteNames.medicalInfo,
+                  ),
+                  _actionButton(
+                    context,
+                    title: 'Education Services',
+                    route: RouteNames.educationInfo,
+                  ),
+                  _actionButton(
+                    context,
+                    title: 'Photo Gallery',
+                    route: RouteNames.photoGallery,
+                  ),
+
+                  const SizedBox(height: 24),
+                ],
+              ),
+            ),
+          ),
+
+          /// ⚪ Indicators
+          Positioned(
+            bottom: 20,
+            left: 0,
+            right: 0,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: _images.asMap().entries.map((entry) {
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  width: _currentIndex == entry.key ? 14 : 8,
+                  height: 8,
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(4),
+                    color: _currentIndex == entry.key
+                        ? Colors.white
+                        : Colors.white54,
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 🔹 Translucent AppBar with logo + profile + logout
+  AppBar _buildAppBar(BuildContext context) {
+    return AppBar(
+      backgroundColor: Colors.black.withOpacity(0.25),
+      elevation: 0,
+      centerTitle: false,
+
+      leading: Padding(
+        padding: const EdgeInsets.only(left: 12),
+        child: Image.asset('assets/logo.png', height: 34),
+      ),
+
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.person_outline),
+          onPressed: () {
+            Navigator.pushNamed(context, RouteNames.profile);
+          },
+        ),
+        IconButton(
+          icon: const Icon(Icons.logout),
+          onPressed: () {
+            LogoutConfirmDialog.show(context);
+          },
+        ),
+
+        const SizedBox(width: 8),
+      ],
+    );
+  }
+
+  /// 🔹 Reusable action button
+  Widget _actionButton(
+    BuildContext context, {
+    required String title,
+    required String route,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: SizedBox(
+        width: double.infinity,
+        height: 52,
+        child: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.white,
+            foregroundColor: Colors.black,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+          ),
+          onPressed: () => Navigator.pushNamed(context, route),
+          child: Text(
+            title,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          ),
+        ),
       ),
     );
   }

@@ -1,94 +1,51 @@
-// scaffold file
-import 'package:flutter/material.dart';
-import '../../home/screens/home_screen.dart';
-import '../controllers/auth_controller.dart';
-import 'login_screen.dart';
+// import 'package:flutter/material.dart';
+// import '../../../core/services/auth_service.dart';
+// import '../../../bootstrap/role_router.dart';
 
-class GuestEntryScreen extends StatelessWidget {
-  const GuestEntryScreen({super.key});
+// class GuestEntryScreen extends StatefulWidget {
+//   const GuestEntryScreen({super.key});
 
-  void _exitGuest(BuildContext context) async {
-    await AuthController.logout();
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-      (_) => false,
-    );
-  }
+//   @override
+//   State<GuestEntryScreen> createState() => _GuestEntryScreenState();
+// }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Guest Access'),
-        actions: [
-          TextButton(
-            onPressed: () => _exitGuest(context),
-            child: const Text(
-              'Login',
-              style: TextStyle(color: Colors.white),
-            ),
-          )
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            const Text(
-              'Welcome Guest',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'You can explore our services, but login is required to submit queries.',
-              textAlign: TextAlign.center,
-            ),
+// class _GuestEntryScreenState extends State<GuestEntryScreen> {
+//   bool _loading = false;
 
-            const SizedBox(height: 24),
+//   Future<void> _continueAsGuest() async {
+//     setState(() => _loading = true);
 
-            /// SERVICES VIEW ONLY
-            ListTile(
-              leading: const Icon(Icons.gavel),
-              title: const Text('Legal Services'),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const HomeScreen(),
-                  ),
-                );
-              },
-            ),
+//     try {
+//       await AuthService().signInAsGuest();
 
-            ListTile(
-              leading: const Icon(Icons.medical_services),
-              title: const Text('Medical Services'),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const HomeScreen(),
-                  ),
-                );
-              },
-            ),
+//       if (!mounted) return;
 
-            ListTile(
-              leading: const Icon(Icons.school),
-              title: const Text('Education Services'),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const HomeScreen(),
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+//       Navigator.pushAndRemoveUntil(
+//         context,
+//         MaterialPageRoute(builder: (_) => const RoleRouter()),
+//         (_) => false,
+//       );
+//     } catch (e) {
+//       setState(() => _loading = false);
+
+//       ScaffoldMessenger.of(context).showSnackBar(
+//         const SnackBar(content: Text('Guest login failed')),
+//       );
+//     }
+//   }
+
+//   @override
+//   Widget build(BuildContext context) {
+//     return Scaffold(
+//       appBar: AppBar(title: const Text('Continue as Guest')),
+//       body: Center(
+//         child: ElevatedButton(
+//           onPressed: _loading ? null : _continueAsGuest,
+//           child: _loading
+//               ? const CircularProgressIndicator()
+//               : const Text('Continue as Guest'),
+//         ),
+//       ),
+//     );
+//   }
+// }

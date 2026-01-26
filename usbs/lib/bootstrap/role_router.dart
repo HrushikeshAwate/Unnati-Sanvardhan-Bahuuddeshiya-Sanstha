@@ -1,24 +1,23 @@
-import 'package:flutter/material.dart';
-import '../features/home/screens/home_screen.dart';
-import '../features/admin/screens/admin_dashboard.dart';
-import '../features/auth/screens/guest_entry_screen.dart';
-import '../features/auth/screens/login_screen.dart';
+// import 'package:flutter/material.dart';
+// import '../features/home/screens/home_screen.dart';
+// import '../features/admin/screens/admin_dashboard.dart';
+// import '../features/auth/screens/login_screen.dart';
 
-class RoleRouter {
-  static Widget resolve(String role) {
-    switch (role) {
-      case 'superadmin':
-      case 'admin':
-        return const AdminDashboard();
+// class RoleRouter {
+//   static Widget resolve(String role) {
+//     switch (role) {
+//       case 'superadmin':
+//       case 'admin':
+//         return const AdminDashboard();
 
-      case 'client':
-        return const HomeScreen();
+//       case 'client':
+//         return const HomeScreen();
 
-      case 'guest':
-        return const GuestEntryScreen();
+//       case 'guest':
+//         // return const GuestEntryScreen();
 
-      default:
-        return const LoginScreen();
-    }
-  }
-}
+//       default:
+//         return const LoginScreen();
+//     }
+//   }
+// }

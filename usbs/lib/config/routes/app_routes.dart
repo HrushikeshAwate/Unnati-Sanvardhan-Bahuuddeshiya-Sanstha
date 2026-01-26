@@ -1,39 +1,33 @@
 import 'package:flutter/material.dart';
-import 'route_names.dart';
+import 'package:usbs/features/legal/screens/my_legal_queries.dart';
 
-// Auth
-import '../../features/auth/screens/splash_screen.dart';
 import '../../features/auth/screens/login_screen.dart';
-import '../../features/auth/screens/guest_entry_screen.dart';
-
-// Client
 import '../../features/home/screens/home_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
-
-// Admin
-import '../../features/admin/screens/admin_dashboard.dart';
-import '../../features/admin/screens/superadmin_dashboard.dart';
-
-// Services
-import '../../features/legal/screens/legal_info_screen.dart';
 import '../../features/medical/screens/medical_info_screen.dart';
+import '../../features/legal/screens/legal_info_screen.dart';
 import '../../features/education/screens/education_info_screen.dart';
+import '../../features/gallery/screens/photo_gallery_screen.dart';
+import 'route_names.dart';
 
 class AppRoutes {
   static final Map<String, WidgetBuilder> routes = {
-    RouteNames.splash: (_) => const SplashScreen(),
+    // AUTH
     RouteNames.login: (_) => const LoginScreen(),
-    RouteNames.guest: (_) => const GuestEntryScreen(),
 
+    // HOME
     RouteNames.home: (_) => const HomeScreen(),
 
-    RouteNames.adminDashboard: (_) => const AdminDashboard(),
-    RouteNames.superAdminDashboard: (_) => const SuperAdminDashboard(),
-
-    RouteNames.legalInfo: (_) => const LegalInfoScreen(),
+    // SERVICES
     RouteNames.medicalInfo: (_) => const MedicalInfoScreen(),
+    RouteNames.legalInfo: (_) => const LegalInfoScreen(),
     RouteNames.educationInfo: (_) => const EducationInfoScreen(),
 
+    // QUERIES
+    RouteNames.myLegalQueries: (_) => const MyLegalQueriesScreen(),
+
+    // OTHER
+    RouteNames.photoGallery: (_) => const PhotoGalleryScreen(),
     RouteNames.profile: (_) => const ProfileScreen(),
   };
 }

@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../../../core/services/firestore_service.dart';
+import 'package:flutter/material.dart';
+import 'package:usbs/core/services/firestore_service.dart';
 
 class LegalQueryForm extends StatefulWidget {
   const LegalQueryForm({super.key});
@@ -10,42 +10,157 @@ class LegalQueryForm extends StatefulWidget {
 }
 
 class _LegalQueryFormState extends State<LegalQueryForm> {
-  final _controller = TextEditingController();
-  bool _loading = false;
+  final _formKey = GlobalKey<FormState>();
+
+  final _nameController = TextEditingController();
+  final _locationController = TextEditingController();
+  final _queryController = TextEditingController();
+
+  String _caseType = 'General';
+  bool _isSubmitting = false;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _locationController.dispose();
+    _queryController.dispose();
+    super.dispose();
+  }
 
   Future<void> _submit() async {
-    setState(() => _loading = true);
+    final user = FirebaseAuth.instance.currentUser;
 
-    await FirestoreService().submitQuery(
-      category: 'legal',
-      description: _controller.text,
-      userId: FirebaseAuth.instance.currentUser!.uid,
-    );
+    /// 🔒 Block guests
+    if (user == null || user.isAnonymous) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please login to submit a legal query'),
+        ),
+      );
+      return;
+    }
 
-    Navigator.pop(context);
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      await FirestoreService().submitLegalQuery(
+        caseType: _caseType,
+        queryText: _queryController.text.trim(),
+        location: _locationController.text.trim(),
+        userName: _nameController.text.trim().isEmpty
+            ? null
+            : _nameController.text.trim(),
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Legal query submitted successfully')),
+      );
+
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Submission failed: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Legal Query')),
+      appBar: AppBar(title: const Text('Legal Support')),
       body: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            TextField(
-              controller: _controller,
-              maxLines: 5,
-              decoration: const InputDecoration(
-                hintText: 'Describe your legal issue',
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            children: [
+              const Text(
+                'Case Details',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _loading ? null : _submit,
-              child: const Text('Submit'),
-            )
-          ],
+
+              const SizedBox(height: 12),
+
+              TextFormField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Your Name (optional)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              TextFormField(
+                controller: _locationController,
+                decoration: const InputDecoration(
+                  labelText: 'City / Location',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) =>
+                    value == null || value.isEmpty ? 'Required' : null,
+              ),
+
+              const SizedBox(height: 12),
+
+              DropdownButtonFormField<String>(
+                value: _caseType,
+                decoration: const InputDecoration(
+                  labelText: 'Legal Category',
+                  border: OutlineInputBorder(),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'General', child: Text('General')),
+                  DropdownMenuItem(value: 'Family', child: Text('Family')),
+                  DropdownMenuItem(value: 'Property', child: Text('Property')),
+                  DropdownMenuItem(value: 'Labour', child: Text('Labour')),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() => _caseType = value);
+                  }
+                },
+              ),
+
+              const SizedBox(height: 16),
+
+              TextFormField(
+                controller: _queryController,
+                maxLines: 6,
+                decoration: const InputDecoration(
+                  labelText: 'Explain your legal issue',
+                  alignLabelWithHint: true,
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) =>
+                    value == null || value.isEmpty ? 'Required' : null,
+              ),
+
+              const SizedBox(height: 24),
+
+              SizedBox(
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: _isSubmitting ? null : _submit,
+                  child: _isSubmitting
+                      ? const CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        )
+                      : const Text('Submit Legal Query'),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
