@@ -1,21 +1,14 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-class MedicalQueryDetailScreen extends StatefulWidget {
-  final QueryDocumentSnapshot queryDoc;
-
-  const MedicalQueryDetailScreen({
-    super.key,
-    required this.queryDoc,
-  });
+class AnswerQueryScreen extends StatefulWidget {
+  const AnswerQueryScreen({super.key});
 
   @override
-  State<MedicalQueryDetailScreen> createState() =>
-      _MedicalQueryDetailScreenState();
+  State<AnswerQueryScreen> createState() => _AnswerQueryScreenState();
 }
 
-class _MedicalQueryDetailScreenState
-    extends State<MedicalQueryDetailScreen> {
+class _AnswerQueryScreenState extends State<AnswerQueryScreen> {
   final TextEditingController replyController = TextEditingController();
 
   @override
@@ -26,10 +19,19 @@ class _MedicalQueryDetailScreenState
 
   @override
   Widget build(BuildContext context) {
-    final queryId = widget.queryDoc.id;
+    final args = ModalRoute.of(context)?.settings.arguments;
+
+    if (args == null || args is! QueryDocumentSnapshot) {
+      return const Scaffold(
+        body: Center(child: Text('Invalid query data')),
+      );
+    }
+
+    final QueryDocumentSnapshot queryDoc = args;
+    final String queryId = queryDoc.id;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Medical Query Details')),
+      appBar: AppBar(title: const Text('Answer Query')),
       body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
             .collection('queries')
@@ -45,29 +47,22 @@ class _MedicalQueryDetailScreenState
             return const Center(child: Text('Query not found'));
           }
 
-          final status = data['status'] ?? 'open';
-          final bool canReply = status == 'replied';
-
           return Column(
             children: [
-              /// 🔹 QUERY DETAILS
+              /// 🔹 QUERY DETAILS (LIVE)
               Expanded(
                 flex: 2,
                 child: ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    _infoTile(
-                        'Patient Name', data['userName'] ?? 'Anonymous'),
-                    _infoTile(
-                        'Age', data['age']?.toString() ?? '-'),
-                    _infoTile(
-                        'Urgency', data['urgency'] ?? '-'),
-                    _infoTile('Status', status),
+                    _infoTile('Name', data['userName'] ?? 'Anonymous'),
+                    _infoTile('Category', data['category'] ?? '-'),
+                    _infoTile('Status', data['status'] ?? 'open'),
 
                     const SizedBox(height: 12),
 
                     const Text(
-                      'Medical Concern',
+                      'Query Description',
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 6),
@@ -91,7 +86,7 @@ class _MedicalQueryDetailScreenState
                 ),
               ),
 
-              /// 🔹 CHAT (ORDERED)
+              /// 🔹 CHAT (ORDERED + BUBBLES)
               Expanded(
                 flex: 3,
                 child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -114,7 +109,7 @@ class _MedicalQueryDetailScreenState
 
                     if (messages.isEmpty) {
                       return const Center(
-                        child: Text('Waiting for admin reply...'),
+                        child: Text('No messages yet'),
                       );
                     }
 
@@ -128,11 +123,11 @@ class _MedicalQueryDetailScreenState
                         Color color;
 
                         if (role == 'admin') {
-                          alignment = Alignment.centerLeft;
-                          color = Colors.grey.shade300;
-                        } else if (role == 'client') {
                           alignment = Alignment.centerRight;
                           color = Colors.blue.shade100;
+                        } else if (role == 'client') {
+                          alignment = Alignment.centerLeft;
+                          color = Colors.grey.shade300;
                         } else {
                           alignment = Alignment.center;
                           color = Colors.grey.shade400;
@@ -164,74 +159,81 @@ class _MedicalQueryDetailScreenState
                 ),
               ),
 
-              /// 🔹 REPLY BOX
-              _replyBox(queryId, canReply),
+              /// 🔹 ADMIN REPLY BAR
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  border: Border(
+                    top: BorderSide(color: Colors.grey.shade300),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.attach_file),
+                      label: const Text('Upload Document'),
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content:
+                                Text('Document upload coming soon'),
+                          ),
+                        );
+                      },
+                    ),
+
+                    const SizedBox(height: 6),
+
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: replyController,
+                            maxLines: 3,
+                            decoration: const InputDecoration(
+                              hintText: 'Write admin reply...',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.send),
+                          onPressed: () async {
+                            final text =
+                                replyController.text.trim();
+                            if (text.isEmpty) return;
+
+                            await FirebaseFirestore.instance
+                                .collection('queries')
+                                .doc(queryId)
+                                .collection('messages')
+                                .add({
+                              'senderRole': 'admin',
+                              'message': text,
+                              'createdAt':
+                                  FieldValue.serverTimestamp(),
+                            });
+
+                            await FirebaseFirestore.instance
+                                .collection('queries')
+                                .doc(queryId)
+                                .update({
+                              'status': 'replied',
+                              'updatedAt':
+                                  FieldValue.serverTimestamp(),
+                            });
+
+                            replyController.clear();
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
             ],
           );
         },
-      ),
-    );
-  }
-
-  Widget _replyBox(String queryId, bool canReply) {
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration:
-          BoxDecoration(border: Border(top: BorderSide(color: Colors.grey))),
-      child: Column(
-        children: [
-          OutlinedButton.icon(
-            icon: const Icon(Icons.attach_file),
-            label: const Text('Upload Document'),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Document upload coming soon'),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: replyController,
-                  enabled: canReply,
-                  decoration: InputDecoration(
-                    hintText: canReply
-                        ? 'Write a reply...'
-                        : 'Waiting for admin reply',
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.send),
-                onPressed: canReply
-                    ? () async {
-                        final text =
-                            replyController.text.trim();
-                        if (text.isEmpty) return;
-
-                        await FirebaseFirestore.instance
-                            .collection('queries')
-                            .doc(queryId)
-                            .collection('messages')
-                            .add({
-                          'senderRole': 'client',
-                          'message': text,
-                          'createdAt':
-                              FieldValue.serverTimestamp(),
-                        });
-
-                        replyController.clear();
-                      }
-                    : null,
-              ),
-            ],
-          ),
-        ],
       ),
     );
   }

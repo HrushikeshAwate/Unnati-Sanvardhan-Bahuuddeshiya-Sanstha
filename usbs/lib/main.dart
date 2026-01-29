@@ -8,10 +8,3 @@ void main() async {
   runApp(const App());
 }
 
-
-
-// stream: FirebaseFirestore.instance
-//             .collection('queries')
-//             .where('category', isEqualTo: 'legal')
-//             .where('userId', isEqualTo: user.uid)
-//             .snapshots(),

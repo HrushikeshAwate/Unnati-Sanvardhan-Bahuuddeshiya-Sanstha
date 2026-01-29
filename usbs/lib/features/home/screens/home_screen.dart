@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:carousel_slider/carousel_slider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:usbs/core/widgets/logout_confirn_dialog.dart';
 
 import '../../../config/routes/route_names.dart';
@@ -14,7 +16,11 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
 
-  /// 🔹 Local asset images
+  /// 🔐 REAL ROLE FLAGS
+  bool isAdmin = false;
+  bool isSuperAdmin = false;
+  bool _loadingRole = true;
+
   final List<String> _images = const [
     'assets/images/banner_1.jpeg',
     'assets/images/banner_2.jpeg',
@@ -22,9 +28,42 @@ class _HomeScreenState extends State<HomeScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _loadUserRole();
+  }
+
+  /// 🔐 Fetch role from Firestore
+  Future<void> _loadUserRole() async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      setState(() => _loadingRole = false);
+      return;
+    }
+
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
+
+    if (!doc.exists) {
+      setState(() => _loadingRole = false);
+      return;
+    }
+
+    final role = doc.data()?['role'];
+
+    setState(() {
+      isAdmin = role == 'admin' || role == 'superadmin';
+      isSuperAdmin = role == 'superadmin';
+      _loadingRole = false;
+    });
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Preload images to avoid grey flash
     for (final img in _images) {
       precacheImage(AssetImage(img), context);
     }
@@ -34,12 +73,19 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final height = MediaQuery.of(context).size.height;
 
+    // ⏳ Wait until role is loaded
+    if (_loadingRole) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
+      drawer: _buildDrawer(context),
       extendBodyBehindAppBar: true,
       appBar: _buildAppBar(context),
       body: Stack(
         children: [
-          /// 🔥 Full height carousel
           CarouselSlider.builder(
             itemCount: _images.length,
             options: CarouselOptions(
@@ -47,25 +93,24 @@ class _HomeScreenState extends State<HomeScreen> {
               viewportFraction: 1,
               autoPlay: true,
               autoPlayInterval: const Duration(seconds: 4),
-              autoPlayAnimationDuration: const Duration(milliseconds: 1200),
+              autoPlayAnimationDuration:
+                  const Duration(milliseconds: 1200),
               autoPlayCurve: Curves.easeInOutCubic,
-              enableInfiniteScroll: true,
               onPageChanged: (index, _) {
                 setState(() => _currentIndex = index);
               },
             ),
             itemBuilder: (context, index, _) {
-              return SizedBox(
+              return Image.asset(
+                _images[index],
+                fit: BoxFit.cover,
                 width: double.infinity,
-                child: Image.asset(_images[index], fit: BoxFit.cover),
               );
             },
           ),
 
-          /// 🌑 Dark overlay
           Container(height: height, color: Colors.black.withOpacity(0.45)),
 
-          /// 🧭 Main content
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(24, 90, 24, 24),
@@ -75,7 +120,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const Spacer(),
 
                   const Text(
-                    'NGO Support Services',
+                    'Unnati Sanvardhan Bahuuddeshiya Sanstha',
                     style: TextStyle(
                       fontSize: 34,
                       fontWeight: FontWeight.bold,
@@ -87,7 +132,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
                   const Text(
                     'Legal • Medical • Education\nSupporting communities with care',
-                    style: TextStyle(fontSize: 18, color: Colors.white70),
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: Colors.white70,
+                    ),
                   ),
 
                   const SizedBox(height: 40),
@@ -107,11 +155,16 @@ class _HomeScreenState extends State<HomeScreen> {
                     title: 'Education Services',
                     route: RouteNames.educationInfo,
                   ),
-                  _actionButton(
-                    context,
-                    title: 'Photo Gallery',
-                    route: RouteNames.photoGallery,
-                  ),
+
+                  /// 🔐 ADMIN + SUPERADMIN ONLY
+                  if (isAdmin)
+                    _actionButton(
+                      context,
+                      title: isSuperAdmin
+                          ? 'Answer Queries (Super Admin)'
+                          : 'Answer Queries (Admin)',
+                      route: RouteNames.adminQueries,
+                    ),
 
                   const SizedBox(height: 24),
                 ],
@@ -119,7 +172,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
 
-          /// ⚪ Indicators
           Positioned(
             bottom: 20,
             left: 0,
@@ -147,38 +199,89 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// 🔹 Translucent AppBar with logo + profile + logout
+  /// 🔹 AppBar
   AppBar _buildAppBar(BuildContext context) {
     return AppBar(
-      backgroundColor: Colors.black.withOpacity(0.25),
+      backgroundColor: Colors.black.withOpacity(0.6),
       elevation: 0,
-      centerTitle: false,
-
-      leading: Padding(
-        padding: const EdgeInsets.only(left: 12),
-        child: Image.asset('assets/logo.png', height: 34),
-      ),
-
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.person_outline),
-          onPressed: () {
-            Navigator.pushNamed(context, RouteNames.profile);
-          },
+      iconTheme: const IconThemeData(color: Colors.white),
+      leading: Builder(
+        builder: (context) => IconButton(
+          icon: Image.asset(
+            'assets/logo.png',
+            height: 28,
+            width: 28,
+            fit: BoxFit.contain,
+          ),
+          onPressed: () => Scaffold.of(context).openDrawer(),
         ),
+      ),
+      title: Text(
+        'USBS',
+        style: Theme.of(context)
+            .textTheme
+            .titleLarge
+            ?.copyWith(color: Colors.white),
+      ),
+      centerTitle: true,
+      actions: [
         IconButton(
           icon: const Icon(Icons.logout),
           onPressed: () {
             LogoutConfirmDialog.show(context);
           },
         ),
-
         const SizedBox(width: 8),
       ],
     );
   }
 
-  /// 🔹 Reusable action button
+  /// 🔹 Drawer
+  Drawer _buildDrawer(BuildContext context) {
+    return Drawer(
+      child: Column(
+        children: [
+          DrawerHeader(
+            decoration: const BoxDecoration(color: Colors.black),
+            child: Center(
+              child: Image.asset(
+                'assets/logo.png',
+                height: 60,
+              ),
+            ),
+          ),
+
+          ListTile(
+            leading: const Icon(Icons.person_outline),
+            title: const Text('Profile'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.pushNamed(context, RouteNames.profile);
+            },
+          ),
+
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: const Text('About'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.pushNamed(context, RouteNames.about);
+            },
+          ),
+
+          ListTile(
+            leading: const Icon(Icons.photo_library_outlined),
+            title: const Text('Photo Gallery'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.pushNamed(context, RouteNames.photoGallery);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _actionButton(
     BuildContext context, {
     required String title,
@@ -200,7 +303,10 @@ class _HomeScreenState extends State<HomeScreen> {
           onPressed: () => Navigator.pushNamed(context, route),
           child: Text(
             title,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ),

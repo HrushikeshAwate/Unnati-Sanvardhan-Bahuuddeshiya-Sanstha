@@ -1,86 +1,81 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:intl/intl.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  bool isEditing = false;
+
+  late TextEditingController nameCtrl;
+  late TextEditingController emailCtrl;
+  late TextEditingController phoneCtrl;
+  late TextEditingController cityCtrl;
+  late TextEditingController stateCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    final user = FirebaseAuth.instance.currentUser;
+
+    nameCtrl = TextEditingController(text: user?.displayName ?? '');
+    emailCtrl = TextEditingController(text: user?.email ?? '');
+    phoneCtrl = TextEditingController(text: user?.phoneNumber ?? '');
+    cityCtrl = TextEditingController();
+    stateCtrl = TextEditingController();
+  }
 
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
-      return const Scaffold(
-        body: Center(child: Text('Not logged in')),
-      );
-    }
-
-    final formatter = DateFormat('dd MMM yyyy');
+    final role = 'Client'; // Admin / Client (later)
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Profile'),
+        title: const Text('My Profile'),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
+            /// PROFILE IMAGE
             CircleAvatar(
-              radius: 56,
+              radius: 60,
               backgroundColor: Colors.grey.shade300,
               backgroundImage:
-                  user.photoURL != null ? NetworkImage(user.photoURL!) : null,
-              child: user.photoURL == null
-                  ? const Icon(Icons.person, size: 64)
+                  user?.photoURL != null ? NetworkImage(user!.photoURL!) : null,
+              child: user?.photoURL == null
+                  ? const Icon(Icons.person, size: 70)
                   : null,
-            ),
-
-            const SizedBox(height: 20),
-
-            Text(
-              user.displayName ?? 'User',
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-
-            const SizedBox(height: 6),
-
-            Text(
-              user.email ?? 'Guest User',
-              style: const TextStyle(color: Colors.grey),
             ),
 
             const SizedBox(height: 30),
 
-            _tile('Account Type', user.isAnonymous ? 'Guest' : 'Registered'),
-            _tile('Login Method', _provider(user)),
-            _tile('Email Verified', user.emailVerified ? 'Yes' : 'No'),
-            _tile(
-              'Created On',
-              formatter.format(user.metadata.creationTime!),
-            ),
-            _tile(
-              'Last Login',
-              formatter.format(user.metadata.lastSignInTime!),
-            ),
+            _sectionTitle('Basic Information'),
+
+            _field('Full Name', nameCtrl),
+            _field('Email', emailCtrl),
+            _field('Phone Number', phoneCtrl),
+            _readOnlyField('Role', role),
+            _field('City', cityCtrl),
+            _field('State', stateCtrl),
 
             const SizedBox(height: 30),
 
             SizedBox(
               width: double.infinity,
-              height: 50,
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.logout),
-                label: const Text('Logout'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.redAccent,
-                ),
-                onPressed: () async {
-                  await FirebaseAuth.instance.signOut();
-                  // ✅ NOTHING ELSE
+              height: 48,
+              child: ElevatedButton(
+                child: Text(isEditing ? 'Save Profile' : 'Edit Profile'),
+                onPressed: () {
+                  setState(() {
+                    isEditing = !isEditing;
+                  });
                 },
               ),
             ),
@@ -90,29 +85,61 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _tile(String label, String value) {
+  // ---------------- UI HELPERS ----------------
+
+  Widget _sectionTitle(String title) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Text(
+          title,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+        ),
+      ),
+    );
+  }
+
+  Widget _field(String label, TextEditingController controller) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label, style: const TextStyle(color: Colors.grey)),
-          const SizedBox(height: 4),
-          Text(value,
-              style:
-                  const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 6),
+          isEditing
+              ? TextField(
+                  controller: controller,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                )
+              : Text(
+                  controller.text.isEmpty
+                      ? 'Not provided'
+                      : controller.text,
+                  style: const TextStyle(fontSize: 16),
+                ),
           const Divider(),
         ],
       ),
     );
   }
 
-  String _provider(User user) {
-    if (user.isAnonymous) return 'Guest';
-    for (final p in user.providerData) {
-      if (p.providerId == 'google.com') return 'Google';
-      if (p.providerId == 'password') return 'Email & Password';
-    }
-    return 'Unknown';
+  Widget _readOnlyField(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.grey)),
+          const SizedBox(height: 6),
+          Text(value, style: const TextStyle(fontSize: 16)),
+          const Divider(),
+        ],
+      ),
+    );
   }
 }

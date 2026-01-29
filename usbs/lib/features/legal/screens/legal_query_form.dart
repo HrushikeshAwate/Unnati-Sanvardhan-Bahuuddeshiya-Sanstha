@@ -93,7 +93,7 @@ class _LegalQueryFormState extends State<LegalQueryForm> {
               TextFormField(
                 controller: _nameController,
                 decoration: const InputDecoration(
-                  labelText: 'Your Name (optional)',
+                  labelText: 'Case Holder Name',
                   border: OutlineInputBorder(),
                 ),
               ),
