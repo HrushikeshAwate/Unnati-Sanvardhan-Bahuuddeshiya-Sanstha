@@ -1,6 +1,9 @@
+import 'dart:ffi';
+
 import 'package:flutter/material.dart';
 import 'package:usbs/features/admin/screens/admin_query_screen.dart';
 import 'package:usbs/features/admin/screens/answer_query_screen.dart';
+import 'package:usbs/features/admin/screens/assign_queries_screen.dart';
 import 'package:usbs/features/legal/screens/my_legal_queries.dart';
 import 'package:usbs/features/profile/screens/about_us_screen.dart';
 
@@ -38,5 +41,8 @@ class AppRoutes {
     // OTHER
     RouteNames.photoGallery: (_) => const PhotoGalleryScreen(),
     RouteNames.profile: (_) => const ProfileScreen(),
+
+    RouteNames.assignQueries: (_) => const AssignQueriesScreen(),
+
   };
 }

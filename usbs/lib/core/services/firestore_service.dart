@@ -47,12 +47,12 @@ class FirestoreService {
     }
   }
 
-  Future<String> fetchUserRole(String uid) async {
-    final doc = await _db.collection('users').doc(uid).get();
-    if (!doc.exists) {
-      throw Exception('User document missing');
-    }
-    return doc.data()!['role'] as String;
+  Future<String?> fetchMyRole() async {
+    final user = _auth.currentUser;
+    if (user == null) return null;
+
+    final doc = await _db.collection('users').doc(user.uid).get();
+    return doc.data()?['role'];
   }
 
   /* =====================================================
@@ -65,30 +65,16 @@ class FirestoreService {
     required String location,
     String? userName,
   }) async {
-    final user = _auth.currentUser;
-    if (user == null) throw Exception('User not logged in');
-
-    final queryRef = _db.collection('queries').doc();
-
-    await queryRef.set({
-      'id': queryRef.id,
-      'userId': user.uid,
-      'userName': userName ?? user.displayName ?? 'Anonymous',
-      'category': 'legal',
-      'caseType': caseType,
-      'location': location,
-      'description': queryText,
-      'status': 'open',
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-
-    // System message (creates messages collection)
-    await queryRef.collection('messages').add({
-      'senderRole': 'system',
-      'message': 'Legal query created. Awaiting admin response.',
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+    await _createQuery(
+      category: 'legal',
+      description: queryText,
+      systemMessage: 'Legal query created. Awaiting admin response.',
+      userName: userName,
+      extraData: {
+        'caseType': caseType,
+        'location': location,
+      },
+    );
   }
 
   Future<void> submitMedicalQuery({
@@ -97,29 +83,16 @@ class FirestoreService {
     String? patientName,
     String? age,
   }) async {
-    final user = _auth.currentUser;
-    if (user == null) throw Exception('User not logged in');
-
-    final queryRef = _db.collection('queries').doc();
-
-    await queryRef.set({
-      'id': queryRef.id,
-      'userId': user.uid,
-      'userName': patientName ?? user.displayName ?? 'Anonymous',
-      'category': 'medical',
-      'urgency': urgency,
-      'age': age,
-      'description': description,
-      'status': 'open',
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-
-    await queryRef.collection('messages').add({
-      'senderRole': 'system',
-      'message': 'Medical query created. Awaiting admin response.',
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+    await _createQuery(
+      category: 'medical',
+      description: description,
+      systemMessage: 'Medical query created. Awaiting admin response.',
+      userName: patientName,
+      extraData: {
+        'urgency': urgency,
+        'age': age,
+      },
+    );
   }
 
   Future<void> submitEducationQuery({
@@ -128,35 +101,79 @@ class FirestoreService {
     String? studentName,
     String? studentClass,
   }) async {
-    final user = _auth.currentUser;
-    if (user == null) throw Exception('User not logged in');
-
-    final queryRef = _db.collection('queries').doc();
-
-    await queryRef.set({
-      'id': queryRef.id,
-      'userId': user.uid,
-      'userName': studentName ?? user.displayName ?? 'Anonymous',
-      'category': 'education',
-      'topic': topic,
-      'studentClass': studentClass,
-      'description': description,
-      'status': 'open',
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-
-    await queryRef.collection('messages').add({
-      'senderRole': 'system',
-      'message': 'Education query created. Awaiting admin response.',
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+    await _createQuery(
+      category: 'education',
+      description: description,
+      systemMessage: 'Education query created. Awaiting admin response.',
+      userName: studentName,
+      extraData: {
+        'topic': topic,
+        'studentClass': studentClass,
+      },
+    );
   }
+
+  Future<void> _createQuery({
+  required String category,
+  required String description,
+  required String systemMessage,
+  required Map<String, dynamic> extraData,
+  String? userName,
+}) async {
+  final user = _auth.currentUser;
+  if (user == null) {
+    throw Exception('User not logged in');
+  }
+
+  final queryRef = _db.collection('queries').doc();
+
+  /// 🔹 MAIN QUERY DOCUMENT
+  await queryRef.set({
+    'id': queryRef.id,
+    'userId': user.uid,
+    'userName': userName ?? user.displayName ?? 'Anonymous',
+    'category': category,
+    'description': description,
+
+    /// 🔐 QUERY STATE
+    'status': 'open', // open | replied | closed
+
+    /// 🔐 ASSIGNMENT (VERY IMPORTANT)
+    /// Must EXIST and be NULL for "Unassigned Queries" to work
+    'assignedAdminId': null,
+    'assignedAdminName': null,
+    'assignedAt': null,
+
+    /// 🔢 MESSAGE COUNTER (FOR ORDERING)
+    'lastMessageSeq': 0,
+
+    /// EXTRA CATEGORY-SPECIFIC DATA
+    ...extraData,
+
+    'createdAt': FieldValue.serverTimestamp(),
+    'updatedAt': FieldValue.serverTimestamp(),
+  });
+
+  /// 🔹 SYSTEM MESSAGE (CREATES messages SUBCOLLECTION)
+  await queryRef.collection('messages').add({
+    'senderRole': 'system', // system | admin | client
+    'message': systemMessage,
+
+    /// 🔢 FIRST MESSAGE SEQUENCE
+    'sequence': 0,
+
+    /// 🔗 PLACEHOLDER FOR FUTURE FILES
+    'attachments': [],
+
+    'createdAt': FieldValue.serverTimestamp(),
+  });
+}
 
   /* =====================================================
    * FETCH QUERIES
    * ===================================================== */
 
+  /// Client: own queries
   Stream<QuerySnapshot<Map<String, dynamic>>> fetchMyQueries() {
     final user = _auth.currentUser;
     if (user == null) throw Exception('User not logged in');
@@ -164,18 +181,64 @@ class FirestoreService {
     return _db
         .collection('queries')
         .where('userId', isEqualTo: user.uid)
+        .orderBy('createdAt', descending: true)
         .snapshots();
   }
 
+  /// Admin: only assigned queries
+  Stream<QuerySnapshot<Map<String, dynamic>>> fetchAssignedQueries() {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('User not logged in');
+
+    return _db
+        .collection('queries')
+        .where('assignedAdminId', isEqualTo: user.uid)
+        .orderBy('createdAt', descending: true)
+        .snapshots();
+  }
+
+  /// Superadmin: all queries
   Stream<QuerySnapshot<Map<String, dynamic>>> fetchAllQueries() {
-    return _db.collection('queries').snapshots();
+    return _db
+        .collection('queries')
+        .orderBy('createdAt', descending: true)
+        .snapshots();
   }
 
   /* =====================================================
-   * CHAT / REPLIES (STRICT FLOW)
+   * ASSIGN QUERY (SUPERADMIN ONLY)
    * ===================================================== */
 
-  /// ADMIN REPLY (FIRST + CONTINUED)
+  Future<void> assignQuery({
+    required String queryId,
+    required String adminId,
+    required String adminName,
+  }) async {
+    await _db.collection('queries').doc(queryId).update({
+      'assignedAdminId': adminId,
+      'assignedAdminName': adminName,
+      'assignedAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /* =====================================================
+   * FETCH ADMINS (SUPERADMIN)
+   * ===================================================== */
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> fetchAdmins() {
+    return _db
+        .collection('users')
+        .where('role', isEqualTo: 'admin')
+        .orderBy('name')
+        .snapshots();
+  }
+
+  /* =====================================================
+   * CHAT / REPLIES
+   * ===================================================== */
+
+  /// Admin reply
   Future<void> sendAdminReply({
     required String queryId,
     required String message,
@@ -188,14 +251,13 @@ class FirestoreService {
       'createdAt': FieldValue.serverTimestamp(),
     });
 
-    // Admin reply unlocks client chat
     await queryRef.update({
       'status': 'replied',
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }
 
-  /// CLIENT REPLY (ONLY AFTER ADMIN)
+  /// Client reply (only after admin)
   Future<void> sendClientReply({
     required String queryId,
     required String message,
@@ -208,9 +270,21 @@ class FirestoreService {
       'createdAt': FieldValue.serverTimestamp(),
     });
 
-    // Status remains replied
     await queryRef.update({
       'updatedAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  /* =====================================================
+   * CHAT STREAM (ORDERED)
+   * ===================================================== */
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> fetchMessages(String queryId) {
+    return _db
+        .collection('queries')
+        .doc(queryId)
+        .collection('messages')
+        .orderBy('createdAt', descending: false)
+        .snapshots();
   }
 }

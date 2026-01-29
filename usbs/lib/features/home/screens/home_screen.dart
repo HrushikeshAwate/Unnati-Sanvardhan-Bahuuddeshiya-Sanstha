@@ -16,50 +16,11 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
 
-  /// 🔐 REAL ROLE FLAGS
-  bool isAdmin = false;
-  bool isSuperAdmin = false;
-  bool _loadingRole = true;
-
   final List<String> _images = const [
     'assets/images/banner_1.jpeg',
     'assets/images/banner_2.jpeg',
     'assets/images/banner_3.jpeg',
   ];
-
-  @override
-  void initState() {
-    super.initState();
-    _loadUserRole();
-  }
-
-  /// 🔐 Fetch role from Firestore
-  Future<void> _loadUserRole() async {
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
-      setState(() => _loadingRole = false);
-      return;
-    }
-
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .get();
-
-    if (!doc.exists) {
-      setState(() => _loadingRole = false);
-      return;
-    }
-
-    final role = doc.data()?['role'];
-
-    setState(() {
-      isAdmin = role == 'admin' || role == 'superadmin';
-      isSuperAdmin = role == 'superadmin';
-      _loadingRole = false;
-    });
-  }
 
   @override
   void didChangeDependencies() {
@@ -72,13 +33,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final height = MediaQuery.of(context).size.height;
-
-    // ⏳ Wait until role is loaded
-    if (_loadingRole) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
 
     return Scaffold(
       drawer: _buildDrawer(context),
@@ -156,15 +110,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     route: RouteNames.educationInfo,
                   ),
 
-                  /// 🔐 ADMIN + SUPERADMIN ONLY
-                  if (isAdmin)
-                    _actionButton(
-                      context,
-                      title: isSuperAdmin
-                          ? 'Answer Queries (Super Admin)'
-                          : 'Answer Queries (Admin)',
-                      route: RouteNames.adminQueries,
-                    ),
+                  _actionButton(
+                    context,
+                    title: 'Answer Queries',
+                    route: RouteNames.adminQueries,
+                  ),
 
                   const SizedBox(height: 24),
                 ],
@@ -236,8 +186,10 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// 🔹 Drawer
+  /// 🔹 Drawer (SUPERADMIN OPTION FIXED)
   Drawer _buildDrawer(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+
     return Drawer(
       child: Column(
         children: [
@@ -277,6 +229,38 @@ class _HomeScreenState extends State<HomeScreen> {
               Navigator.pushNamed(context, RouteNames.photoGallery);
             },
           ),
+
+          /// 🔐 SUPERADMIN ONLY: ASSIGN QUERIES
+          if (user != null)
+            StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              stream: FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(user.uid)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const SizedBox.shrink();
+                }
+
+                final role = snapshot.data!.data()?['role'];
+
+                if (role == 'superadmin') {
+                  return ListTile(
+                    leading: const Icon(Icons.assignment_ind),
+                    title: const Text('Assign Queries'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.pushNamed(
+                        context,
+                        RouteNames.assignQueries,
+                      );
+                    },
+                  );
+                }
+
+                return const SizedBox.shrink();
+              },
+            ),
         ],
       ),
     );

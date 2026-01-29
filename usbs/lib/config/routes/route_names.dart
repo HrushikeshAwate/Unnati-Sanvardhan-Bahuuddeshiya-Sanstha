@@ -16,4 +16,7 @@ class RouteNames {
 
   static const adminQueries = '/admin/queries';
   static const answerQuery = '/admin/answer-query';
+
+  static const assignQueries = '/assign-queries';
+
 }
