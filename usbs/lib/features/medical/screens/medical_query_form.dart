@@ -114,7 +114,7 @@ class _MedicalQueryFormState extends State<MedicalQueryForm> {
               const SizedBox(height: 12),
 
               DropdownButtonFormField<String>(
-                value: _urgency,
+                initialValue: _urgency,
                 decoration: const InputDecoration(
                   labelText: 'Urgency Level',
                   border: OutlineInputBorder(),

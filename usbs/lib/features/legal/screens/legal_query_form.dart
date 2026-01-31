@@ -113,7 +113,7 @@ class _LegalQueryFormState extends State<LegalQueryForm> {
               const SizedBox(height: 12),
 
               DropdownButtonFormField<String>(
-                value: _caseType,
+                initialValue: _caseType,
                 decoration: const InputDecoration(
                   labelText: 'Legal Category',
                   border: OutlineInputBorder(),

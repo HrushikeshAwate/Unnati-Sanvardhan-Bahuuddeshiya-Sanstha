@@ -115,7 +115,7 @@ class _EducationQueryFormState extends State<EducationQueryForm> {
               const SizedBox(height: 12),
 
               DropdownButtonFormField<String>(
-                value: _topic,
+                initialValue: _topic,
                 decoration: const InputDecoration(
                   labelText: 'Topic',
                   border: OutlineInputBorder(),
