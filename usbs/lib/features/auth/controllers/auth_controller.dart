@@ -1,10 +1,8 @@
 import '../../../bootstrap/dependency_injection.dart';
 
 class AuthController {
-  static Future<void> loginWithEmail(
-      String email, String password) async {
-    await DependencyInjection.authService
-        .loginWithEmail(email, password);
+  static Future<void> loginWithEmail(String email, String password) async {
+    await DependencyInjection.authService.loginWithEmail(email, password);
   }
 
   static Future<void> loginWithGoogle() async {

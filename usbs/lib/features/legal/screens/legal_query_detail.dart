@@ -1,5 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:usbs/config/theme/app_colors.dart';
+import 'package:usbs/core/localization/app_language.dart';
+import 'package:usbs/core/services/firestore_service.dart';
+import 'package:usbs/core/utils/date_utils.dart';
+import 'package:usbs/core/utils/query_status_utils.dart';
+import 'package:usbs/core/widgets/status_chip.dart';
 
 class LegalQueryDetailScreen extends StatefulWidget {
   final QueryDocumentSnapshot queryDoc;
@@ -7,12 +14,31 @@ class LegalQueryDetailScreen extends StatefulWidget {
   const LegalQueryDetailScreen({super.key, required this.queryDoc});
 
   @override
-  State<LegalQueryDetailScreen> createState() =>
-      _LegalQueryDetailScreenState();
+  State<LegalQueryDetailScreen> createState() => _LegalQueryDetailScreenState();
 }
 
 class _LegalQueryDetailScreenState extends State<LegalQueryDetailScreen> {
   final TextEditingController replyController = TextEditingController();
+  String? _role;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRole();
+  }
+
+  Future<void> _loadRole() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
+    if (!mounted) return;
+    setState(() {
+      _role = userDoc.data()?['role']?.toString();
+    });
+  }
 
   @override
   void dispose() {
@@ -23,9 +49,28 @@ class _LegalQueryDetailScreenState extends State<LegalQueryDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final queryId = widget.queryDoc.id;
+    final t = (String s) => AppI18n.tx(context, s);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Legal Query Details')),
+      appBar: AppBar(
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: Theme.of(context).brightness == Brightness.dark
+                ? const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFF0B4A45), Color(0xFF0D5F58)],
+                  )
+                : const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFF0F766E), Color(0xFF115E59)],
+                  ),
+          ),
+        ),
+        title: Text(t('Legal Query Details')),
+        actions: const [LanguageMenuButton()],
+      ),
       body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
             .collection('queries')
@@ -38,17 +83,100 @@ class _LegalQueryDetailScreenState extends State<LegalQueryDetailScreen> {
 
           final data = querySnap.data!.data();
           if (data == null) {
-            return const Center(child: Text('Query not found'));
+            return Center(child: Text(t('Query not found')));
           }
 
-          final status = data['status'] ?? 'open';
-          final canReply = status == 'replied';
-
+          final status = normalizeQueryStatus(data['status']?.toString());
           return Column(
             children: [
-              _queryHeader(data, status),
-              _chatSection(queryId),
-              _replyBox(queryId, canReply),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+                  children: [
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.gavel_outlined),
+                                const SizedBox(width: 8),
+                                Text(
+                                  t('Case Details'),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                const Spacer(),
+                                StatusChip(status: status),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            _info(t('Name'), (data['userName'] ?? 'Anonymous').toString()),
+                            _info(t('Location'), (data['location'] ?? '-').toString()),
+                            _info(t('Case Type'), (data['caseType'] ?? '-').toString()),
+                            _info(
+                              t('Assigned To'),
+                              (data['assignedAdminName'] ?? t('Unassigned'))
+                                  .toString(),
+                            ),
+                            _info(t('Submitted At'), formatSubmittedAt(data)),
+                            _info(t('Answered At'), formatAnsweredAt(data)),
+                            if (_role == 'superadmin')
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: OutlinedButton.icon(
+                                    onPressed: () => _showReassignDialog(
+                                      queryId: queryId,
+                                      currentAssignedAdminId: data['assignedAdminId']
+                                          ?.toString(),
+                                    ),
+                                    icon: const Icon(Icons.swap_horiz_rounded),
+                                    label: Text(t('Assign admin')),
+                                  ),
+                                ),
+                              ),
+                            const SizedBox(height: 8),
+                            Text(
+                              t('Legal Issue'),
+                              style: const TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 6),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: AppColors.elevatedSurface(context),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: AppColors.border),
+                              ),
+                              child: Text(
+                                t((data['description'] ?? '').toString()),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      t('Conversation'),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _chatSection(queryId, t),
+                  ],
+                ),
+              ),
+              _replyBox(queryId, t, status),
             ],
           );
         },
@@ -56,156 +184,279 @@ class _LegalQueryDetailScreenState extends State<LegalQueryDetailScreen> {
     );
   }
 
-  Widget _queryHeader(Map<String, dynamic> data, String status) {
-    return Expanded(
-      flex: 2,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _info('Name', data['userName'] ?? 'Anonymous'),
-          _info('Location', data['location'] ?? '-'),
-          _info('Case Type', data['caseType'] ?? '-'),
-          _info('Status', status),
-          const SizedBox(height: 10),
-          const Text('Legal Issue',
-              style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 6),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade200,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(data['description'] ?? ''),
-          ),
-          const Divider(height: 30),
-          const Text('Conversation',
-              style: TextStyle(fontWeight: FontWeight.bold)),
-        ],
-      ),
-    );
-  }
-
-  Widget _chatSection(String queryId) {
-    return Expanded(
-      flex: 3,
-      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance
-            .collection('queries')
-            .doc(queryId)
-            .collection('messages')
-            .orderBy('createdAt', descending: false)
-            .snapshots(),
-        builder: (context, snap) {
-          if (!snap.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final messages = snap.data!.docs
-              .where((d) => d.data()['createdAt'] != null)
-              .toList();
-
-          if (messages.isEmpty) {
-            return const Center(
-                child: Text('Waiting for admin reply...'));
-          }
-
-          return ListView.builder(
-            itemCount: messages.length,
-            itemBuilder: (context, i) {
-              final msg = messages[i].data();
-              final role = msg['senderRole'];
-
-              Alignment align;
-              Color color;
-
-              if (role == 'admin') {
-                align = Alignment.centerLeft;
-                color = Colors.grey.shade300;
-              } else if (role == 'client') {
-                align = Alignment.centerRight;
-                color = Colors.blue.shade100;
-              } else {
-                align = Alignment.center;
-                color = Colors.grey.shade400;
-              }
-
-              return Align(
-                alignment: align,
-                child: Container(
-                  margin:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: color,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(msg['message'] ?? '',
-                      textAlign:
-                          role == 'system' ? TextAlign.center : TextAlign.left),
-                ),
-              );
-            },
+  Widget _chatSection(String queryId, String Function(String) t) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('queries')
+          .doc(queryId)
+          .collection('messages')
+          .orderBy('createdAt', descending: false)
+          .snapshots(),
+      builder: (context, snap) {
+        if (!snap.hasData) {
+          return const Padding(
+            padding: EdgeInsets.all(24),
+            child: Center(child: CircularProgressIndicator()),
           );
-        },
-      ),
+        }
+
+        final messages = snap.data!.docs
+            .where(
+              (d) =>
+                  d.data()['createdAt'] != null &&
+                  (d.data()['senderRole']?.toString() ?? '') != 'system',
+            )
+            .toList();
+
+        if (messages.isEmpty) {
+          return Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Text(t('No messages yet')),
+            ),
+          );
+        }
+
+        return Column(
+          children: messages.map((doc) {
+            final msg = doc.data();
+            final role = (msg['senderRole'] ?? 'system').toString();
+            final isClient = role == 'client';
+            final isAdmin = role == 'admin';
+            final bubbleColor = isAdmin
+                ? AppColors.elevatedSurface(context)
+                : isClient
+                ? const Color(0xFFE3EEF9)
+                : AppColors.softAmber;
+            final textColor = isClient || role == 'system'
+                ? const Color(0xFF102133)
+                : Theme.of(context).colorScheme.onSurface;
+            return Align(
+              alignment: isAdmin
+                  ? Alignment.centerLeft
+                  : isClient
+                  ? Alignment.centerRight
+                  : Alignment.center,
+              child: Container(
+                margin: const EdgeInsets.symmetric(vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                constraints: const BoxConstraints(maxWidth: 320),
+                decoration: BoxDecoration(
+                  color: bubbleColor,
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(14),
+                    topRight: const Radius.circular(14),
+                    bottomLeft: Radius.circular(isClient ? 14 : 4),
+                    bottomRight: Radius.circular(isClient ? 4 : 14),
+                  ),
+                  border: Border.all(color: AppColors.border),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x12000000),
+                      blurRadius: 6,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Text(
+                  t((msg['message'] ?? '').toString()),
+                  style: TextStyle(color: textColor),
+                  textAlign: role == 'system' ? TextAlign.center : TextAlign.left,
+                ),
+              ),
+            );
+          }).toList(),
+        );
+      },
     );
   }
 
-  Widget _replyBox(String queryId, bool canReply) {
+  Widget _replyBox(
+    String queryId,
+    String Function(String) t,
+    String status,
+  ) {
     return Container(
-      padding: const EdgeInsets.all(8),
-      decoration:
-          BoxDecoration(border: Border(top: BorderSide(color: Colors.grey))),
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+      decoration: BoxDecoration(
+        color: AppColors.elevatedSurface(context),
+        border: const Border(top: BorderSide(color: AppColors.border)),
+      ),
+      child: Column(
         children: [
-          Expanded(
-            child: TextField(
-              controller: replyController,
-              enabled: canReply,
-              decoration: InputDecoration(
-                hintText:
-                    canReply ? 'Write a reply…' : 'Waiting for admin reply',
-                border: const OutlineInputBorder(),
+          if (status != 'answered')
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () async {
+                  await FirestoreService().markQuerySatisfied(queryId: queryId);
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(t('Marked as satisfied'))),
+                  );
+                },
+                icon: const Icon(Icons.check_circle_outline),
+                label: Text(t('Mark as Satisfied')),
               ),
             ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.send),
-            onPressed: canReply
-                ? () async {
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.elevatedSurface(context),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: TextField(
+                    controller: replyController,
+                    decoration: InputDecoration(
+                      hintText: t('Write a reply...'),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Material(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(14),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () async {
                     final text = replyController.text.trim();
                     if (text.isEmpty) return;
 
-                    await FirebaseFirestore.instance
-                        .collection('queries')
-                        .doc(queryId)
-                        .collection('messages')
-                        .add({
-                      'senderRole': 'client',
-                      'message': text,
-                      'createdAt': FieldValue.serverTimestamp(),
-                    });
+                    await FirestoreService().sendClientReply(
+                      queryId: queryId,
+                      message: text,
+                    );
 
                     replyController.clear();
-                  }
-                : null,
-          )
+                  },
+                  child: const SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: Icon(Icons.send_rounded, color: Colors.white),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 
   Widget _info(String k, String v) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Row(
-          children: [
-            SizedBox(
-                width: 120,
-                child:
-                    Text('$k:', style: const TextStyle(fontWeight: FontWeight.w600))),
-            Expanded(child: Text(v)),
-          ],
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Row(
+      children: [
+        SizedBox(
+          width: 120,
+          child: Text('$k:', style: const TextStyle(fontWeight: FontWeight.w600)),
         ),
-      );
+        Expanded(child: Text(v)),
+      ],
+    ),
+  );
+
+  Future<void> _showReassignDialog({
+    required String queryId,
+    required String? currentAssignedAdminId,
+  }) async {
+    final t = (String s) => AppI18n.tx(context, s);
+    String? selectedAdminId = currentAssignedAdminId;
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .collection('users')
+              .where('role', isEqualTo: 'admin')
+              .snapshots(),
+          builder: (context, snapshot) {
+            final docs = snapshot.data?.docs ?? const [];
+            final admins = docs.where((doc) => doc.data()['isActive'] != false).toList();
+
+            return AlertDialog(
+              title: Text(t('Assign admin')),
+              content: StatefulBuilder(
+                builder: (context, setLocalState) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const SizedBox(
+                      height: 70,
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  if (admins.isEmpty) {
+                    return Text(t('No admin available'));
+                  }
+                  return DropdownButtonFormField<String>(
+                    initialValue: selectedAdminId != null &&
+                            admins.any((a) => a.id == selectedAdminId)
+                        ? selectedAdminId
+                        : null,
+                    hint: Text(t('Assign admin')),
+                    items: admins.map((doc) {
+                      final data = doc.data();
+                      final name =
+                          (data['name'] ?? data['email'] ?? 'Admin').toString();
+                      return DropdownMenuItem<String>(
+                        value: doc.id,
+                        child: Text(name),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setLocalState(() => selectedAdminId = value);
+                    },
+                  );
+                },
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: Text(t('Cancel')),
+                ),
+                ElevatedButton(
+                  onPressed: admins.isEmpty || selectedAdminId == null
+                      ? null
+                      : () async {
+                          final selectedDoc = admins.firstWhere(
+                            (a) => a.id == selectedAdminId,
+                          );
+                          final selectedData = selectedDoc.data();
+                          final adminName = (selectedData['name'] ??
+                                  selectedData['email'] ??
+                                  'Admin')
+                              .toString();
+
+                          await FirestoreService().assignQuery(
+                            queryId: queryId,
+                            adminId: selectedDoc.id,
+                            adminName: adminName,
+                          );
+                          if (!dialogContext.mounted) return;
+                          Navigator.pop(dialogContext);
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(t('Query assigned successfully')),
+                            ),
+                          );
+                        },
+                  child: Text(t('update')),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
 }

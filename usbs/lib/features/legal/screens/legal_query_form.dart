@@ -1,5 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:usbs/config/theme/app_colors.dart';
+import 'package:usbs/config/theme/app_text_styles.dart';
+import 'package:usbs/core/localization/app_language.dart';
 import 'package:usbs/core/services/firestore_service.dart';
 
 class LegalQueryForm extends StatefulWidget {
@@ -29,12 +32,21 @@ class _LegalQueryFormState extends State<LegalQueryForm> {
 
   Future<void> _submit() async {
     final user = FirebaseAuth.instance.currentUser;
+    final t = (String s) => AppI18n.tx(context, s);
 
-    /// 🔒 Block guests
-    if (user == null || user.isAnonymous) {
+    if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please login to submit a legal query'),
+        SnackBar(content: Text(t('Please login to submit a legal query'))),
+      );
+      return;
+    }
+
+    if (user.isAnonymous) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            t('Guest users cannot submit queries. Please login with Google.'),
+          ),
         ),
       );
       return;
@@ -55,17 +67,15 @@ class _LegalQueryFormState extends State<LegalQueryForm> {
       );
 
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Legal query submitted successfully')),
+        SnackBar(content: Text(t('Legal query submitted successfully'))),
       );
-
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Submission failed: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('${t('Submission failed')}: $e')));
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);
@@ -75,88 +85,141 @@ class _LegalQueryFormState extends State<LegalQueryForm> {
 
   @override
   Widget build(BuildContext context) {
+    final t = (String s) => AppI18n.tx(context, s);
     return Scaffold(
-      appBar: AppBar(title: const Text('Legal Support')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
+      appBar: AppBar(
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: Theme.of(context).brightness == Brightness.dark
+                ? const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFF0B4A45), Color(0xFF0D5F58)],
+                  )
+                : const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFF0F766E), Color(0xFF115E59)],
+                  ),
+          ),
+        ),
+        title: Text(t('Legal Support')),
+        actions: const [LanguageMenuButton()],
+      ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: AppColors.pageGradient(context),
+        ),
         child: Form(
           key: _formKey,
           child: ListView(
+            padding: const EdgeInsets.all(16),
             children: [
-              const Text(
-                'Case Details',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-
-              const SizedBox(height: 12),
-
-              TextFormField(
-                controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Case Holder Name',
-                  border: OutlineInputBorder(),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppColors.isDark(context)
+                              ? const Color(0xFF2A3A4E)
+                              : AppColors.softAmber,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          Icons.gavel_outlined,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(t('Case Details'), style: AppTextStyles.title),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-
               const SizedBox(height: 12),
-
-              TextFormField(
-                controller: _locationController,
-                decoration: const InputDecoration(
-                  labelText: 'City / Location',
-                  border: OutlineInputBorder(),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    children: [
+                      TextFormField(
+                        controller: _nameController,
+                        decoration: InputDecoration(
+                          labelText: t('Case Holder Name'),
+                          prefixIcon: const Icon(Icons.person_outline),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _locationController,
+                        decoration: InputDecoration(
+                          labelText: t('City / Location'),
+                          prefixIcon: const Icon(Icons.location_on_outlined),
+                        ),
+                        validator: (value) =>
+                            value == null || value.isEmpty ? t('Required') : null,
+                      ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        initialValue: _caseType,
+                        decoration: InputDecoration(
+                          labelText: t('Legal Category'),
+                          prefixIcon: const Icon(Icons.category_outlined),
+                        ),
+                        items: [
+                          DropdownMenuItem(
+                            value: 'General',
+                            child: Text(t('General')),
+                          ),
+                          DropdownMenuItem(value: 'Family', child: Text(t('Family'))),
+                          DropdownMenuItem(
+                            value: 'Property',
+                            child: Text(t('Property')),
+                          ),
+                          DropdownMenuItem(value: 'Labour', child: Text(t('Labour'))),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) {
+                            setState(() => _caseType = value);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _queryController,
+                        maxLines: 6,
+                        decoration: InputDecoration(
+                          labelText: t('Explain your legal issue'),
+                          alignLabelWithHint: true,
+                        ),
+                        validator: (value) =>
+                            value == null || value.isEmpty ? t('Required') : null,
+                      ),
+                    ],
+                  ),
                 ),
-                validator: (value) =>
-                    value == null || value.isEmpty ? 'Required' : null,
               ),
-
-              const SizedBox(height: 12),
-
-              DropdownButtonFormField<String>(
-                initialValue: _caseType,
-                decoration: const InputDecoration(
-                  labelText: 'Legal Category',
-                  border: OutlineInputBorder(),
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'General', child: Text('General')),
-                  DropdownMenuItem(value: 'Family', child: Text('Family')),
-                  DropdownMenuItem(value: 'Property', child: Text('Property')),
-                  DropdownMenuItem(value: 'Labour', child: Text('Labour')),
-                ],
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() => _caseType = value);
-                  }
-                },
-              ),
-
               const SizedBox(height: 16),
-
-              TextFormField(
-                controller: _queryController,
-                maxLines: 6,
-                decoration: const InputDecoration(
-                  labelText: 'Explain your legal issue',
-                  alignLabelWithHint: true,
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) =>
-                    value == null || value.isEmpty ? 'Required' : null,
-              ),
-
-              const SizedBox(height: 24),
-
               SizedBox(
-                height: 48,
-                child: ElevatedButton(
+                height: 50,
+                child: ElevatedButton.icon(
                   onPressed: _isSubmitting ? null : _submit,
-                  child: _isSubmitting
-                      ? const CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
+                  icon: const Icon(Icons.send_outlined),
+                  label: _isSubmitting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
                         )
-                      : const Text('Submit Legal Query'),
+                      : Text(t('Submit Legal Query')),
                 ),
               ),
             ],

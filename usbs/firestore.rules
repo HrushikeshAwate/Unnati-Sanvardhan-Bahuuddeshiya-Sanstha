@@ -1,0 +1,140 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userPath(uid) {
+      return /databases/$(db)/documents/users/$(uid);
+    }
+
+    function hasUserDoc() {
+      return isSignedIn() && exists(userPath(request.auth.uid));
+    }
+
+    function role() {
+      return hasUserDoc() ? get(userPath(request.auth.uid)).data.role : null;
+    }
+
+    function isAdmin() {
+      return role() == 'admin';
+    }
+
+    function isSuperAdmin() {
+      return role() == 'superadmin';
+    }
+
+    function isAdminOrSuperAdmin() {
+      return isAdmin() || isSuperAdmin();
+    }
+
+    function queryPath(queryId) {
+      return /databases/$(db)/documents/queries/$(queryId);
+    }
+
+    function queryData(queryId) {
+      return get(queryPath(queryId)).data;
+    }
+
+    function queryExists(queryId) {
+      return exists(queryPath(queryId));
+    }
+
+    function isQueryOwner(queryId) {
+      return queryData(queryId).userId == request.auth.uid;
+    }
+
+    function isAssignedAdmin(queryId) {
+      return queryData(queryId).assignedAdminId == request.auth.uid;
+    }
+
+    function canReadQuery(queryId) {
+      return isSignedIn()
+        && queryExists(queryId)
+        && (isQueryOwner(queryId) || isAdminOrSuperAdmin());
+    }
+
+    function assignmentFieldsUnchanged() {
+      return request.resource.data.assignedAdminId == resource.data.assignedAdminId
+        && request.resource.data.assignedAdminName == resource.data.assignedAdminName
+        && request.resource.data.assignedAt == resource.data.assignedAt;
+    }
+
+    match /users/{uid} {
+      allow create: if isSignedIn() && request.auth.uid == uid;
+
+      allow read: if isSignedIn()
+        && (request.auth.uid == uid || isAdminOrSuperAdmin());
+
+      allow update: if isSignedIn()
+        && request.auth.uid == uid
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.expertise == resource.data.expertise
+        && request.resource.data.isActive == resource.data.isActive;
+
+      allow update: if isSuperAdmin();
+
+      // Superadmin can delete non-superadmin user docs
+      allow delete: if isSuperAdmin() && resource.data.role != 'superadmin';
+
+      match /notifications/{notificationId} {
+        allow read, update, delete: if isSignedIn() && request.auth.uid == uid;
+        allow create: if isSignedIn();
+      }
+    }
+
+    match /queries/{queryId} {
+      allow create: if isSignedIn()
+        && hasUserDoc()
+        && request.auth.token.firebase.sign_in_provider != 'anonymous'
+        && request.resource.data.userId == request.auth.uid;
+
+      allow read: if isSignedIn()
+        && (
+          resource.data.userId == request.auth.uid
+          || isAdminOrSuperAdmin()
+        );
+
+      allow update: if isSignedIn()
+        && (
+          isSuperAdmin()
+          || (isAdmin() && isAssignedAdmin(queryId) && assignmentFieldsUnchanged())
+          || (resource.data.userId == request.auth.uid && assignmentFieldsUnchanged())
+        );
+
+      allow delete: if isSuperAdmin();
+
+      match /messages/{messageId} {
+        allow read: if canReadQuery(queryId);
+
+        allow create: if isSignedIn()
+          && queryExists(queryId)
+          && (
+            isSuperAdmin()
+            || (isAdmin() && isAssignedAdmin(queryId))
+            || (
+              isQueryOwner(queryId)
+              && queryData(queryId).status != 'answered'
+            )
+          );
+
+        allow update: if false;
+        // Needed so superadmin can fully clean queries
+        allow delete: if isSuperAdmin();
+      }
+    }
+
+    match /system/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdminOrSuperAdmin();
+
+      // Allow nested system configuration documents such as:
+      // /system/supportScreens/pages/{pageId}
+      match /{subPath=**} {
+        allow read: if isSignedIn();
+        allow write: if isAdminOrSuperAdmin();
+      }
+    }
+  }
+}

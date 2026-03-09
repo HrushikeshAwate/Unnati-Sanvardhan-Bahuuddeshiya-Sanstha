@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:usbs/core/localization/app_language.dart';
+import 'package:usbs/core/services/auth_service.dart';
 
 import '../../config/routes/route_names.dart';
 
@@ -9,19 +10,17 @@ class LogoutConfirmDialog {
       context: context,
       barrierDismissible: false,
       builder: (_) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
+        title: Text(AppI18n.tx(context, 'Logout')),
+        content: Text(AppI18n.tx(context, 'Are you sure you want to logout?')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(AppI18n.tx(context, 'Cancel')),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
             onPressed: () async {
-              await FirebaseAuth.instance.signOut();
+              await AuthService().logout();
 
               if (!context.mounted) return;
 
@@ -33,7 +32,7 @@ class LogoutConfirmDialog {
                 (route) => false,
               );
             },
-            child: const Text('Logout'),
+            child: Text(AppI18n.tx(context, 'Logout')),
           ),
         ],
       ),

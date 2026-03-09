@@ -3,11 +3,7 @@ class UserModel {
   final String? email;
   final String role;
 
-  UserModel({
-    required this.uid,
-    required this.email,
-    required this.role,
-  });
+  UserModel({required this.uid, required this.email, required this.role});
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(

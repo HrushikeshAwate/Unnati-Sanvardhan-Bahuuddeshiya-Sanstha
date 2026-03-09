@@ -14,9 +14,9 @@ class QueryModel {
   });
 
   Map<String, dynamic> toJson() => {
-        'userId': userId,
-        'category': category,
-        'description': description,
-        'status': status,
-      };
+    'userId': userId,
+    'category': category,
+    'description': description,
+    'status': status,
+  };
 }
